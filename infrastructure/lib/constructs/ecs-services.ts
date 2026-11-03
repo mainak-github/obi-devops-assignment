@@ -73,6 +73,7 @@ export class EcsServices extends Construct {
         DB_NAME: 'appdb',
         DB_USER: 'appuser',
         DB_SSL: 'true',
+        DB_SSL_CA: '/app/certs/global-bundle.pem',
       },
       secrets: {
         DB_PASSWORD: ecs.Secret.fromSecretsManager(props.databaseCredentialsSecret, 'password'),

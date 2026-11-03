@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import config from './env.js';
 
@@ -12,7 +13,14 @@ export const pool = new Pool({
   max: config.database.poolMax,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: config.database.ssl ? { rejectUnauthorized: true } : false,
+  ssl: config.database.ssl
+    ? {
+        ca: config.database.sslCaPath
+          ? readFileSync(config.database.sslCaPath, 'utf8')
+          : undefined,
+        rejectUnauthorized: true,
+      }
+    : false,
 });
 
 pool.on('error', (error) => {
