@@ -1,0 +1,15 @@
+{
+  "name": "react-node-starter",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:dev --prefix backend\" \"npm:dev --prefix frontend\"",
+    "build": "npm run build --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend",
+    "check:backend": "npm run check --prefix backend",
+    "check": "npm run check:backend && npm run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

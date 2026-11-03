@@ -1,0 +1,33 @@
+# Dependencies
+**/node_modules/
+
+# Build output
+**/dist/
+infrastructure/cdk.out/
+infrastructure/coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs and generated files
+npm-debug.log*
+*.tsbuildinfo
+
+# OS and editor files
+.DS_Store
+.vscode/
+
+# Local CDK context
+infrastructure/cdk.context.json
+
+# Secrets
+*.pem
+*.key
+.aws/
+
+# Environment-specific local compose overrides
+docker-compose.override.yml
+
+# Ignore source folder outside root project if generated

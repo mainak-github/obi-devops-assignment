@@ -1,0 +1,47 @@
+name: CI and Deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Install CDK dependencies
+        run: npm ci
+        working-directory: infrastructure
+      - name: Build and test CDK application
+        run: |
+          npm run build
+          npm test -- --runInBand
+        working-directory: infrastructure
+      - name: Synthesize CDK template
+        run: npx cdk synth
+        working-directory: infrastructure
+      - name: Build container images
+        run: |
+          docker build -t backend:${{ github.sha }} ./backend
+          docker build -t frontend:${{ github.sha }} ./frontend
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Require configured deployment
+        run: |
+          echo "Configure AWS OIDC credentials and CDK deployment steps before enabling production deployment."
