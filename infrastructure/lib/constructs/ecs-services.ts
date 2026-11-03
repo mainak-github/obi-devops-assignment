@@ -133,7 +133,7 @@ export class EcsServices extends Construct {
     });
     props.listener.addTargets('BackendApiTargets', {
       priority: 10,
-      conditions: [elbv2.ListenerCondition.pathPatterns(['/api/*'])],
+      conditions: [elbv2.ListenerCondition.pathPatterns(['/api/*', '/ready'])],
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [this.backendService],
