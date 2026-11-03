@@ -72,7 +72,7 @@ export class EcsServices extends Construct {
         DB_PORT: '5432',
         DB_NAME: 'appdb',
         DB_USER: 'appuser',
-        DB_SSL: 'false',
+        DB_SSL: 'true',
       },
       secrets: {
         DB_PASSWORD: ecs.Secret.fromSecretsManager(props.databaseCredentialsSecret, 'password'),
