@@ -46,10 +46,14 @@ describe('ThreeTierStack', () => {
     });
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
       Priority: 10,
-      Conditions: [{
-        Field: 'path-pattern',
-        PathPatternConfig: { Values: ['/api/*'] },
-      }],
+      Conditions: [
+        {
+          Field: 'path-pattern',
+          PathPatternConfig: {
+            Values: ['/api/*', '/ready'],
+          },
+        },
+      ],
     });
     template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
       IpProtocol: 'tcp',
