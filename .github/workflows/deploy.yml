@@ -27,6 +27,10 @@ jobs:
       - name: Install application dependencies
         run: npm ci
 
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
       - name: Run application checks
         run: npm run check
 
