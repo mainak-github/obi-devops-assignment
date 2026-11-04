@@ -3,45 +3,145 @@ name: CI and Deploy
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   validate:
+    name: Validate, Test and Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
-      - name: Install CDK dependencies
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Run application checks
+        run: npm run check
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install infrastructure dependencies
         run: npm ci
         working-directory: infrastructure
+
       - name: Build and test CDK application
         run: |
           npm run build
           npm test -- --runInBand
         working-directory: infrastructure
+
       - name: Synthesize CDK template
         run: npx cdk synth
         working-directory: infrastructure
-      - name: Build container images
-        run: |
-          docker build -t backend:${{ github.sha }} ./backend
-          docker build -t frontend:${{ github.sha }} ./frontend
+
+      - name: Build backend Docker image
+        run: docker build --platform linux/amd64 -t backend:${{ github.sha }} ./backend
+
+      - name: Build frontend Docker image
+        run: docker build --platform linux/amd64 -t frontend:${{ github.sha }} ./frontend
 
   deploy:
+    name: Deploy to AWS
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
-    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+
+    env:
+      AWS_REGION: ap-south-1
+      AWS_ACCOUNT_ID: "515206814432"
+      IMAGE_TAG: ${{ github.sha }}
+      APP_URL: http://ObiDev-LoadB-mNBQH5t6opm6-681051659.ap-south-1.elb.amazonaws.com
+
     steps:
-      - name: Require configured deployment
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install infrastructure dependencies
+        run: npm ci
+        working-directory: infrastructure
+
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::515206814432:role/GitHubActionsDeployRole
+          aws-region: ap-south-1
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Log in to Amazon ECR
         run: |
-          echo "Configure AWS OIDC credentials and CDK deployment steps before enabling production deployment."
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login \
+              --username AWS \
+              --password-stdin \
+              "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+      - name: Build and push backend image
+        run: |
+          docker build --platform linux/amd64 \
+            -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/obi-devops-backend:$IMAGE_TAG" \
+            ./backend
+
+          docker push \
+            "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/obi-devops-backend:$IMAGE_TAG"
+
+      - name: Build and push frontend image
+        run: |
+          docker build --platform linux/amd64 \
+            -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/obi-devops-frontend:$IMAGE_TAG" \
+            ./frontend
+
+          docker push \
+            "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/obi-devops-frontend:$IMAGE_TAG"
+
+      - name: Deploy infrastructure and ECS services
+        run: |
+          npx cdk deploy ObiDevopsThreeTierStack \
+            -c servicesEnabled=true \
+            -c imageTag="$IMAGE_TAG" \
+            --require-approval never
+        working-directory: infrastructure
+
+      - name: Verify application health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$APP_URL/ready" \
+              && curl --fail --silent "$APP_URL/api/health"; then
+              echo "Application health checks passed."
+              exit 0
+            fi
+
+            echo "Health check attempt $attempt failed. Retrying..."
+            sleep 10
+          done
+
+          echo "Application health checks failed."
+          exit 1

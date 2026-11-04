@@ -31,3 +31,6 @@ infrastructure/cdk.context.json
 docker-compose.override.yml
 
 # Ignore source folder outside root project if generated
+
+github-oidc-trust.json
+github-deploy-policy.json
