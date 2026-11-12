@@ -1,0 +1,42 @@
+nameOverride: ""
+fullnameOverride: ""
+
+postgres:
+  image: postgres:16-alpine
+  storage: 1Gi
+  username: appuser
+  password: ""
+  database: appdb
+
+backend:
+  # Replace with the provided API image when one is supplied. The default is
+  # a public HTTP echo image so the chart can be installed without a build.
+  image: hashicorp/http-echo:1.0.0
+  pullPolicy: IfNotPresent
+  replicas: 2
+  port: 5678
+  args: ["-listen=:5678", "-text=backend is healthy"]
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  probePath: /
+
+frontend:
+  # Replace with the provided frontend image to serve the assignment app.
+  image: nginx:alpine
+  pullPolicy: IfNotPresent
+  replicas: 1
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: three-tier-app.local
+
+networkPolicy:
+  enabled: true

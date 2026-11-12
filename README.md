@@ -8,6 +8,7 @@ A three-tier application scaffold with a React + TypeScript frontend, Node.js RE
 frontend/       React application, Vite build, and Nginx container config
 backend/        Node.js REST API and service layers
 infrastructure/ AWS CDK app, constructs, and stack tests
+three-tier-app/ Helm chart for local Kubernetes deployment
 .github/        CI/CD workflows
 scripts/        Local development and image utilities
 docker-compose.yml
@@ -42,6 +43,10 @@ To start the containerized stack instead:
 ```sh
 docker compose up --build
 ```
+
+## Kubernetes assignment
+
+The local Kubernetes Helm chart is in `three-tier-app/`. Follow [its README](three-tier-app/README.md) for installation, Ingress access, and NetworkPolicy verification.
 
 ## Infrastructure
 

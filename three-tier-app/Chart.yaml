@@ -1,0 +1,6 @@
+apiVersion: v2
+name: three-tier-app
+description: A small frontend, backend, and PostgreSQL application for local Kubernetes clusters
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

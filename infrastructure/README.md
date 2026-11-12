@@ -1,3 +1,18 @@
+# AWS CDK quick start
+
+From the repository root:
+
+```bash
+cd infrastructure
+npm ci
+npx cdk synth
+npx cdk deploy
+```
+
+The first deploy creates ECR repositories and infrastructure with ECS desired counts set to zero. After pushing both images to the output ECR repositories under the same full 40-character commit SHA, deploy the services with `npx cdk deploy -c servicesEnabled=true -c imageTag="$GIT_COMMIT_SHA"`.
+
+RDS generates its username and password in AWS Secrets Manager, and ECS injects the password into the backend task from that secret at runtime. The database is placed in isolated private subnets and is not publicly accessible. Security groups allow public HTTP only to the ALB, task ingress only from the ALB, and PostgreSQL ingress only from the backend task security group.
+
 # CDK deployment stages
 
 The CDK stack defaults to a bootstrap stage: it creates the ECR repositories and supporting infrastructure, but keeps both ECS services at `desiredCount: 0`. This lets the repositories exist before ECS attempts to pull application images. The stage still creates billable AWS resources, including the NAT gateway, ALB, and RDS instance; review the estimate and account setup before deploying it.
@@ -20,4 +35,4 @@ npx cdk deploy \
 
 `GIT_COMMIT_SHA` must be the full 40-character commit SHA. The ECR repositories reject mutable tags, scan images on push, and retain the most recent 20 images. For later releases, push both new SHA-tagged images before running the second deploy command.
 
-The GitHub Actions workflow currently validates, tests, synthesizes, and builds images. Its deploy job remains a placeholder until AWS OIDC role and account settings are configured and deployment is approved.
+The GitHub Actions workflow validates, synthesizes, builds and pushes both images on pushes to `main`, then deploys the stack through GitHub OIDC. The deploy job requires the configured `GitHubActionsDeployRole`, account/region values, and a valid OIDC trust policy for this repository.
