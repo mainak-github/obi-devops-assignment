@@ -1,59 +1,193 @@
-# OBI DevOps assignment
+# OBI DevOps Assignment — Submission Documentation
 
-A working three-tier records application: React frontend → Express API → PostgreSQL. Records are persisted in the database and remain available after refresh.
+**Candidate:** Mainak Bhattacherjee
 
-## Run locally
+**Repository:** obi-devops-assignment
+**Last deployment and endpoint check:** 22 November 2026
 
-Requirements: Docker with the Compose plugin. From the repository root:
+## 1. Assignment objective
 
-```sh
-docker compose up --build
-```
+This submission implements a three-tier records application:
 
-Open [http://localhost:8080](http://localhost:8080). The app stores local demo data in the named `postgres_data` volume. The Compose-only fallback credential is for disposable development data; set `DB_PASSWORD` in an ignored root `.env` file for a local override. Never use the Compose credential outside local development. Stop with `docker compose down`; use `docker compose down -v` only when you intend to erase the local database.
+1. A React and TypeScript frontend
+2. An Express REST API
+3. A PostgreSQL database
 
-For hot reload, run `npm ci`, `npm ci --prefix frontend`, then `npm run dev`. The frontend runs on port 5173 and the backend on port 3000. Copy `backend/.env.example` to `backend/.env` and set local PostgreSQL connection values first.
+Users can create, view, and delete records. The API stores records in PostgreSQL; refreshing the page loads them from the database again. The frontend and backend run as separate services in Docker Compose and AWS ECS.
 
-## Acceptance criteria
+## 2. Deployed application
 
-- [ ] The deployed public URL loads the frontend over HTTP.
-- [ ] A user can create a record with a title and optional details.
-- [ ] The list is read from the backend API and PostgreSQL, not browser-only state.
-- [ ] A user can delete a record; refresh preserves creates and deletes.
-- [ ] The API is reachable under `/api`; `GET /api/health` checks process health.
-- [ ] `GET /ready` returns 200 when PostgreSQL is reachable and 503 when it is not.
-- [ ] Frontend and backend are separate services. The frontend serves its static UI without a database connection and displays an API outage message when the API cannot load records.
-- [ ] The same images and API routes run through Docker Compose and ECS.
-- [ ] No production secret is committed. ECS reads the RDS password from Secrets Manager.
-- [ ] Pull requests run validation, frontend type checking/build, infrastructure synthesis/tests, and Docker builds.
-- [ ] Changes move from feature branch → `develop` (staging) → pull request → `main` (production). Protect both long-lived branches with required pull request reviews and required CI checks.
-- [ ] Production deployment uses a protected GitHub Environment with required reviewers; staging and production each have separate AWS role, URL, and environment variables.
-- [ ] Submit an end-to-end screen recording showing add, refresh/persistence, delete, and the deployed public URL.
+| Environment | Public application URL | Deployment |
+| --- | --- | --- |
+| Production | [Open production](http://ObiDev-LoadB-mNBQH5t6opm6-681051659.ap-south-1.elb.amazonaws.com) | Existing production CDK stack and ECS services |
+| Staging | [Open staging](http://ObiDev-LoadB-hTWKDAlluglu-308141241.ap-south-1.elb.amazonaws.com) | Separate staging CDK stack and ECS services |
 
-Use the [demo recording walkthrough](docs/demo-script.md) as the capture checklist.
+Both environments are served through a public Application Load Balancer over HTTP. The ALB routes the frontend path to the frontend ECS service and API paths to the backend ECS service. PostgreSQL is private and accepts traffic from the backend tier.
 
-## Branch and release workflow
+## 3. Architecture and request flow
 
-Use short-lived branches named `feature/<change>`, `fix/<change>`, or `docs/<change>`, based on `develop`. Open a pull request into `develop`; after checks pass and review is complete, merge it to deploy to staging. Promote by opening a pull request from `develop` into `main`. A successful CI run and approval in the protected `production` GitHub Environment are required before production deploy. Protect `develop` and `main` in repository settings; GitHub cannot enforce branch protection from this repository alone.
+    Browser
+      |
+      | GET /
+      v
+    Public Application Load Balancer
+      |                         |
+      | /                       | /api/* and /ready
+      v                         v
+    Frontend ECS service     Backend ECS service
+    React build + Nginx      Express REST API
+                                  |
+                                  | PostgreSQL over private network
+                                  v
+                              RDS PostgreSQL
 
-## CI/CD configuration
+The backend reads its database password from AWS Secrets Manager through the ECS task definition. The database is in private isolated subnets. The frontend container serves the static application independently of the database. In ECS, the ALB sends API traffic directly to the backend. In Docker Compose, the frontend’s Nginx configuration proxies /api to the backend service name.
 
-The workflow is `.github/workflows/deploy.yml`. Configure GitHub Environments named `staging` and `production`. For each environment set variables `AWS_REGION`, `AWS_ACCOUNT_ID`, and `APP_URL`, plus secret `AWS_DEPLOY_ROLE_ARN`. The role trust policy must allow GitHub OIDC for this repository and the corresponding environment. Restrict production to required reviewers and the `main` branch; restrict staging to `develop`. No AWS keys or deployment credentials belong in repository files.
+The backend creates the records table idempotently when the API is first used. SQL values are parameterized. A record contains an identity ID, title, details, and creation timestamp.
 
-The workflow deploys separate CDK stacks and ECR repositories for staging and production, tagged by commit SHA. Each stage needs its own resources and URL. Set its account and region through its GitHub Environment variables. The first deployment provisions infrastructure including RDS, NAT, and ALB, which incur AWS charges. Review cost and account access before enabling environments.
+## 4. User functionality and API
 
-## API
+The page provides a form to add a record, a list of saved records, a refresh action, and a delete action. If the API is unavailable, the frontend remains served and shows an API error message.
 
-- `GET /api/health` — process liveness
-- `GET /ready` — database readiness
-- `GET /api/v1/records` — list records
-- `POST /api/v1/records` — create `{ "title": "...", "details": "..." }`
-- `DELETE /api/v1/records/:id` — delete a record
+| Method and path | Purpose |
+| --- | --- |
+| GET /api/health | Backend process health; does not require the database |
+| GET /ready | Database readiness; returns HTTP 200 when connected and HTTP 503 when unavailable |
+| GET /api/v1/records | Return saved records from PostgreSQL |
+| POST /api/v1/records | Create a record using JSON with a required title and optional details |
+| DELETE /api/v1/records/:id | Delete a record by ID |
 
-The backend creates the `records` table idempotently on first API use. SQL values are parameterized. Database connectivity is required for CRUD, but not for the static frontend.
+Example create request:
 
-## Repository layout
+    curl -X POST http://localhost:8080/api/v1/records \
+      -H 'Content-Type: application/json' \
+      -d '{"title":"Assignment note","details":"Persisted in PostgreSQL"}'
 
-`frontend/` React + TypeScript UI and Nginx image · `backend/` Express API and PostgreSQL integration · `infrastructure/` AWS CDK VPC, ALB, ECS, RDS, and Secrets Manager · `three-tier-app/` optional Helm chart · `.github/workflows/` validation and staged deployment.
+## 5. Run the application locally
 
-See [infrastructure/README.md](infrastructure/README.md) and [three-tier-app/README.md](three-tier-app/README.md) for platform-specific notes.
+### Requirements
+
+- Docker Desktop or Docker Engine
+- Docker Compose v2
+
+### Start
+
+From the repository root, run:
+
+    docker compose up --build
+
+Open http://localhost:8080. The API is also published at http://localhost:3000. The Compose services are:
+
+- db — PostgreSQL 16, with a persistent named volume
+- backend — Express API on port 3000
+- frontend — Nginx-served React application on port 8080
+
+Compose uses a local-only fallback password so the first run works without a credentials file. It is only for disposable local development. To override it, set DB_PASSWORD in an ignored root .env file. Never use local demo credentials in AWS or commit real credentials.
+
+Stop the services with:
+
+    docker compose down
+
+The named database volume is retained by this command, so saved records remain on a later start. To erase the local database and its records intentionally:
+
+    docker compose down -v
+
+### Optional hot reload
+
+For frontend and backend development outside the containers:
+
+1. Start PostgreSQL with Docker Compose.
+2. Copy backend/.env.example to backend/.env and set the local database values.
+3. Install root and frontend dependencies with npm ci and npm ci --prefix frontend.
+4. Run npm run dev from the repository root.
+
+The Vite frontend runs on port 5173 and proxies /api to the backend on port 3000.
+
+## 6. AWS deployment
+
+Infrastructure is defined with AWS CDK in infrastructure/. The production and staging stacks each contain a VPC, public ALB, private ECS Fargate services, private RDS PostgreSQL, ECR repositories, and Secrets Manager integration. Images are tagged with the full source commit SHA and ECR repositories use immutable tags.
+
+Current ECR repositories:
+
+- Production: obi-devops-backend and obi-devops-frontend
+- Staging: obi-devops-backend-staging and obi-devops-frontend-staging
+
+The deployments documented above were made from commit fc877bc6ed884f9b8be7480414ae8c1dc41423c2. Each environment has its own database, load balancer, and services. These AWS resources incur ongoing charges. RDS has deletion protection and a retain policy; do not delete a stack without separately considering retained databases and ongoing costs.
+
+### GitHub Actions deployment
+
+The workflow is .github/workflows/deploy.yml.
+
+- Pull requests targeting develop or main run validation, TypeScript checks, application builds, infrastructure build/tests/synthesis, and Docker image builds.
+- A push to develop deploys staging.
+- A push to main deploys production after the production GitHub Environment gate is satisfied.
+- The workflow publishes SHA-tagged images to ECR, deploys the matching CDK stack, then checks /ready and /api/health.
+- AWS access uses GitHub OIDC; no long-lived AWS access keys belong in GitHub secrets.
+
+### GitHub configuration required to enable automatic deployment
+
+The workflow is in the repository, but GitHub branch protections and deployment environments must be configured in repository settings. The connected GitHub integration did not have administration access when this document was prepared.
+
+1. Create a develop branch from main.
+2. Protect develop and main. Require pull requests, at least one approval, the Validate, build, and package status check, and current approvals after new commits. Disable force pushes and branch deletion.
+3. Create GitHub Environments named staging and production. Restrict staging deployments to develop. Restrict production deployments to main and require an authorized reviewer.
+4. In each environment, set AWS_REGION to ap-south-1, AWS_ACCOUNT_ID to the AWS account used for the stacks, and APP_URL to that environment’s URL from Section 2.
+5. Set AWS_DEPLOY_ROLE_ARN as an environment secret. Its OIDC trust policy must allow the repository’s staging and production environment subjects.
+6. Extend the deployment role policy to publish to the staging ECR repositories as well as production repositories. Keep ECR access scoped to these repositories and retain the OIDC subject restrictions.
+
+The existing deployment role currently trusts a main-branch subject and its ECR permissions cover the production repositories. Update those settings before expecting GitHub Actions to assume the role and deploy staging. Until the GitHub settings and IAM policy are configured, the AWS environments are deployed and reachable, but automatic GitHub deployments are not fully enabled.
+
+## 7. Branching and promotion workflow
+
+Use short-lived branches from develop:
+
+- feature/<change> for application work
+- fix/<change> for defect fixes
+- docs/<change> for documentation
+
+Open a pull request from the short-lived branch to develop. After checks and review pass, merge to deploy to staging. Promote by opening a pull request from develop to main. After merge, the protected production Environment approval gates the production deployment.
+
+The implementation branch for this submission is codex/functional-three-tier-deployment. It has been pushed to GitHub; main was not changed. Create the develop branch and apply its protection rules before using the staged promotion workflow.
+
+## 8. Acceptance criteria and verification
+
+| Requirement | Result |
+| --- | --- |
+| Public frontend deployment | Verified in production and staging |
+| Create, view, and delete records | Verified against both public APIs |
+| Database persistence after a fresh request/refresh | Verified by reading a created record again before deleting it |
+| Frontend remains accessible during database outage | Verified in staging: GET / returned HTTP 200 while RDS was stopping |
+| Backend readiness reports database outage | Verified in staging: GET /ready returned HTTP 503 during the outage |
+| Database recovery | RDS was restarted; /ready returned HTTP 200 afterward |
+| Production endpoints | On 22 November 2026, /, /ready, /api/health, and /api/v1/records each returned HTTP 200 |
+| Staging endpoints | On 22 November 2026, /, /ready, /api/health, and /api/v1/records each returned HTTP 200 |
+| Backend and frontend image builds | Built successfully for the deployed revision |
+| Frontend TypeScript validation and production build | Passed |
+| CDK TypeScript build and synthesis | Passed |
+| Docker Compose configuration | docker compose config passed |
+| Full local Compose runtime | Configured for docker compose up --build; not separately exercised in this deployment session |
+| GitHub Actions run and protected branch/environment gates | Workflow is committed; repository rules, environment approvals, and an Actions run are still pending |
+| End-to-end demonstration video | Not yet recorded; use Section 9 as the recording checklist |
+
+## 9. End-to-end video demonstration checklist
+
+Record a 2–3 minute capture with the public production URL visible:
+
+1. Load the production page.
+2. Create a record with a recognizable title and details.
+3. Refresh the page and show the record remains.
+4. Delete the record, refresh again, and show it stays deleted.
+5. Show GET /api/health and GET /ready returning HTTP 200.
+6. In staging only, stop or isolate PostgreSQL. Show the frontend still loads and /ready returns HTTP 503. Restore PostgreSQL and show /ready return HTTP 200.
+7. Show the workflow run for the deployed commit and the staging-to-production promotion after GitHub protections are configured.
+
+Do not show credentials, secret values, or environment files. Do not perform the outage demonstration against production.
+
+## 10. Repository map
+
+- frontend/ — React + TypeScript application, Nginx config, and Dockerfile
+- backend/ — Express API, PostgreSQL pool, health/readiness routes, and Dockerfile
+- infrastructure/ — AWS CDK application and ECS, ALB, VPC, RDS, ECR, and Secrets Manager constructs
+- three-tier-app/ — optional Kubernetes Helm chart for the same application
+- .github/workflows/deploy.yml — validation and staged deployment workflow
+- docker-compose.yml — reproducible local three-service application
