@@ -13,6 +13,7 @@ export class ThreeTierStack extends Stack {
     const servicesEnabled = this.node.tryGetContext('servicesEnabled') === true
       || this.node.tryGetContext('servicesEnabled') === 'true';
     const requestedImageTag = this.node.tryGetContext('imageTag');
+    const stage = String(this.node.tryGetContext('stage') || 'dev').toLowerCase();
     const imageTag = requestedImageTag ? String(requestedImageTag) : 'bootstrap';
     if (servicesEnabled && !/^[0-9a-f]{40}$/i.test(imageTag)) {
       throw new Error('Set imageTag to a full 40-character commit SHA when enabling ECS services');
@@ -45,6 +46,7 @@ export class ThreeTierStack extends Stack {
       databaseCredentialsSecret: database.credentialsSecret,
       imageTag,
       servicesEnabled,
+      stage,
     });
 
     new CfnOutput(this, 'ApplicationUrl', {

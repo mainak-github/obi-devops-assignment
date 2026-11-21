@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { checkDatabaseConnection } from '../config/database.js';
+import { checkDatabaseConnection, initializeDatabase } from '../config/database.js';
 
 const router = Router();
 
@@ -14,6 +14,7 @@ router.get('/health', (_request, response) => {
 router.get('/ready', async (_request, response) => {
   try {
     await checkDatabaseConnection();
+    await initializeDatabase();
 
     return response.status(200).json({
       status: 'ready',
