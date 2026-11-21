@@ -18,6 +18,7 @@ interface EcsServicesProps {
   databaseCredentialsSecret: secretsmanager.ISecret;
   imageTag: string;
   servicesEnabled: boolean;
+  stage: string;
 }
 
 export class EcsServices extends Construct {
@@ -31,14 +32,18 @@ export class EcsServices extends Construct {
     super(scope, id);
 
     this.backendRepository = new ecr.Repository(this, 'BackendRepository', {
-      repositoryName: 'obi-devops-backend',
+      repositoryName: props.stage === 'production'
+        ? 'obi-devops-backend'
+        : `obi-devops-backend-${props.stage}`,
       removalPolicy: RemovalPolicy.RETAIN,
       imageTagMutability: ecr.TagMutability.IMMUTABLE,
       imageScanOnPush: true,
       lifecycleRules: [{ maxImageCount: 20, tagStatus: ecr.TagStatus.ANY }],
     });
     this.frontendRepository = new ecr.Repository(this, 'FrontendRepository', {
-      repositoryName: 'obi-devops-frontend',
+      repositoryName: props.stage === 'production'
+        ? 'obi-devops-frontend'
+        : `obi-devops-frontend-${props.stage}`,
       removalPolicy: RemovalPolicy.RETAIN,
       imageTagMutability: ecr.TagMutability.IMMUTABLE,
       imageScanOnPush: true,

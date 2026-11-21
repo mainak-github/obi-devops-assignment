@@ -31,3 +31,14 @@ export async function checkDatabaseConnection() {
   const result = await pool.query('SELECT 1 AS connected');
   return result.rows[0].connected === 1;
 }
+
+export async function initializeDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS records (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      title VARCHAR(120) NOT NULL CHECK (length(trim(title)) > 0),
+      details TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}

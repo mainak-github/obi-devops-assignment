@@ -8,7 +8,7 @@ const config = {
     port: Number(process.env.DB_PORT || 5432),
     name: process.env.DB_NAME || 'appdb',
     user: process.env.DB_USER || 'appuser',
-    password: process.env.DB_PASSWORD || 'devpassword',
+    password: process.env.DB_PASSWORD || '',
     ssl: process.env.DB_SSL === 'true',
     sslCaPath: process.env.DB_SSL_CA,
     poolMax: Number(process.env.DB_POOL_MAX || 10),
